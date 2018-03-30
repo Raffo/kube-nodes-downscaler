@@ -90,6 +90,20 @@ func determineNewCapacity(startTime, endTime, cap, day, currentHour int, consult
 	return cap
 }
 
+func validateParams(startTime, endTime int) error {
+	if startTime < 1 || startTime > 24 {
+		return fmt.Errorf("start of working day should be greater or equal than 1 and less than 24, have: %d", startTime)
+	}
+	if endTime < 1 || endTime > 24 {
+		return fmt.Errorf("end of working day should be greater or equal than 1 and less than 24, have: %d", endTime)
+	}
+
+	if endTime < startTime {
+		return fmt.Errorf("end of working day %d should be greater than start %d", endTime, startTime)
+	}
+	return nil
+}
+
 func main() {
 	startTime := kingpin.Flag("start", "Start of the working day. 24h format.").Default("9").Int()
 	endTime := kingpin.Flag("end", "End of the working day. 24h format.").Default("18").Int()
@@ -99,6 +113,11 @@ func main() {
 	kingpin.Parse()
 
 	session := session.New()
+
+	err := validateParams(*startTime, *endTime)
+	if err != nil {
+		log.Fatalf("invalid params: %v", err)
+	}
 
 	svc := ec2metadata.New(session)
 	id, err := svc.GetInstanceIdentityDocument()
@@ -122,17 +141,6 @@ func main() {
 	asg := ASG{
 		Name:   *asgName,
 		Client: client,
-	}
-
-	if *startTime < 1 || *startTime > 24 {
-		log.Fatalf("Start of working day should be greater or equal than 1 and less than 24, have: %d\n", *startTime)
-	}
-	if *endTime < 1 || *endTime > 24 {
-		log.Fatalf("End of working day should be greater or equal than 1 and less than 24, have: %d\n", *endTime)
-	}
-
-	if *endTime < *startTime {
-		log.Fatalf("End of working day %d should be greater than start %d\n", *endTime, *startTime)
 	}
 
 	log.Println("starting the loop")
