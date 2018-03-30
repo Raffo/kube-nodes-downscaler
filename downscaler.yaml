@@ -29,7 +29,7 @@ spec:
         args:
           - --start=7
           - --end=17
-          - --asgn-name=ASGN_NAME
+          - --asg-name=ASGN_NAME
         resources:
           requests:
             memory: 20Mi
