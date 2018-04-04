@@ -40,7 +40,14 @@ func (a *ASG) SetCapacity(capacity int64) error {
 	_, err := a.Client.SetDesiredCapacity(input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
-			return aerr
+			switch aerr.Code() {
+			case autoscaling.ErrCodeScalingActivityInProgressFault:
+				log.Printf("cannot autoscale due to activity in progress: %v\n", aerr.Error())
+			case autoscaling.ErrCodeResourceContentionFault:
+				log.Printf("cannot autoscale due to contention: %v\n", aerr.Error())
+			default:
+				return aerr
+			}
 		}
 		return err
 	}

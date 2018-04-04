@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 )
 
@@ -14,9 +15,13 @@ const (
 
 type MockAutoscalingClient struct {
 	DesiredCapacity int
+	EmulatedErr     string
 }
 
 func (m *MockAutoscalingClient) SetDesiredCapacity(input *autoscaling.SetDesiredCapacityInput) (*autoscaling.SetDesiredCapacityOutput, error) {
+	if m.EmulatedErr != "" {
+		return nil, awserr.New(m.EmulatedErr, "error", nil)
+	}
 	m.DesiredCapacity = int(*input.DesiredCapacity)
 	return nil, nil
 }
@@ -54,6 +59,40 @@ func TestSetCapacity(t *testing.T) {
 		t.Fatalf("expected %d, got %d", 3, cap)
 	}
 
+}
+
+func TestSetCapacityWithActivityInProgress(t *testing.T) {
+	client := &MockAutoscalingClient{EmulatedErr: autoscaling.ErrCodeScalingActivityInProgressFault}
+	asg := NewMockASG()
+	asg.Client = client
+	newCap := 3
+	err := asg.SetCapacity(int64(newCap))
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	if aerr, ok := err.(awserr.Error); ok {
+		if aerr.Code() != autoscaling.ErrCodeScalingActivityInProgressFault {
+			t.Fatalf("expecting %v, got %v", autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Code())
+		}
+	}
+}
+
+func TestSetCapacityWithContentionFault(t *testing.T) {
+	client := &MockAutoscalingClient{EmulatedErr: autoscaling.ErrCodeResourceContentionFault}
+	asg := NewMockASG()
+	asg.Client = client
+	newCap := 3
+	err := asg.SetCapacity(int64(newCap))
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	if aerr, ok := err.(awserr.Error); ok {
+		if aerr.Code() != autoscaling.ErrCodeResourceContentionFault {
+			t.Fatalf("expecting %v, got %v", autoscaling.ErrCodeResourceContentionFault, aerr.Code())
+		}
+	}
 }
 
 func TestGetCurrentCapacity(t *testing.T) {
