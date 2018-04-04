@@ -24,12 +24,12 @@ spec:
       hostNetwork: true
       containers:
       - name: downscaler
-        image: x0rg/kube-nodes-downscaler
+        image: x0rg/kube-nodes-downscaler:v0.0.2
         imagePullPolicy: Always
         args:
           - --start=7
           - --end=17
-          - --asgn-name=ASGN_NAME
+          - --asg-name=FOO
         resources:
           requests:
             memory: 20Mi
