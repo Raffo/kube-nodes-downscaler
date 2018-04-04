@@ -195,3 +195,59 @@ func TestDetermineNewCapacity(tt *testing.T) {
 	}
 
 }
+
+func TestValidateParams(tt *testing.T) {
+
+	for _, test := range []struct {
+		name        string
+		startTime   int
+		endTime     int
+		expectedErr bool
+	}{
+		{
+			name:        "Normal working ours are valid.",
+			startTime:   9,
+			endTime:     18,
+			expectedErr: false,
+		},
+		{
+			name:        "Negative start is invalid.",
+			startTime:   -1,
+			endTime:     18,
+			expectedErr: true,
+		},
+		{
+			name:        "Negative end is invalid.",
+			startTime:   0,
+			endTime:     -1,
+			expectedErr: true,
+		},
+		{
+			name:        "0 is not a valid start.",
+			startTime:   0,
+			endTime:     18,
+			expectedErr: true,
+		},
+		{
+			name:        "24 as end is valid.",
+			startTime:   1,
+			endTime:     24,
+			expectedErr: false,
+		},
+		{
+			name:        "more than 24 as end is invalid.",
+			startTime:   1,
+			endTime:     25,
+			expectedErr: true,
+		},
+	} {
+
+		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			tt.Log(test.name)
+			err := validateParams(test.startTime, test.endTime)
+			if (err != nil) != test.expectedErr {
+				t.Errorf("expected %v, got %v", test.expectedErr, err != nil)
+			}
+		})
+	}
+}
