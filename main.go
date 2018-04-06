@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -19,9 +20,7 @@ type autoscalingInterface interface {
 	DescribeAutoScalingGroups(input *autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error)
 }
 
-const (
-	sleepSeconds = 60
-)
+var ignoredError = errors.New("nothing to worry about")
 
 // ASG is the basic data type to deal with AWS ASGs.
 type ASG struct {
@@ -43,8 +42,10 @@ func (a *ASG) SetCapacity(capacity int64) error {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeScalingActivityInProgressFault:
 				log.Printf("cannot autoscale due to activity in progress: %v\n", aerr.Error())
+				return ignoredError
 			case autoscaling.ErrCodeResourceContentionFault:
 				log.Printf("cannot autoscale due to contention: %v\n", aerr.Error())
+				return ignoredError
 			default:
 				return aerr
 			}
@@ -78,17 +79,20 @@ func autodetectASGName(client autoscalingInterface, instanceName *string) (strin
 }
 
 func determineNewCapacity(startTime, endTime, cap, day, currentHour int, consultantMode bool) int {
-	if cap > 0 {
-		if currentHour > endTime {
-			// scale down to 0
+	if currentHour > endTime || currentHour < startTime {
+		// scale down to 0
+		return 0
+	}
+	if day == 6 || day == 7 {
+		if consultantMode {
+			if currentHour > startTime {
+				// scale up
+				return 2
+			}
+		} else {
 			return 0
 		}
 	} else {
-		if !consultantMode {
-			if day == 6 || day == 7 {
-				return cap
-			}
-		}
 		if currentHour > startTime {
 			// scale up
 			return 2
@@ -117,6 +121,7 @@ func main() {
 	consultantMode := kingpin.Flag("consultant-mode", "When true, will make sure that the nodes are available during the weekend.").Default("false").Bool()
 	asgName := kingpin.Flag("asg-name", "Name of the autoscaling group. Useful to make the downscaler handle different ASGs from the one it's running on.").String()
 	autoDetectASG := kingpin.Flag("autodetect", "Autodetect ASG group name, which is the ASG where this application is running.").Bool()
+	interval := kingpin.Flag("interval", "Interval by which the size is checked.").Default("60s").Duration()
 	kingpin.Parse()
 
 	session := session.New()
@@ -163,11 +168,15 @@ func main() {
 			log.Printf("setting capacity to %d, previous: %d\n", newCap, cap)
 			err := asg.SetCapacity(int64(newCap))
 			if err != nil {
+				if err == ignoredError {
+					log.Printf("ignoring this error as it is a transient state")
+					continue
+				}
 				//deciding to fail fast here. As this code is designed to work only with Kubernetes we get restarts for free.
 				log.Fatalf("error setting ASG capacity: %v", err)
 			}
 		}
-		log.Printf("Nothing left to do, going to sleep for %d seconds\n", sleepSeconds)
-		time.Sleep(sleepSeconds * time.Second)
+		log.Printf("Nothing left to do, going to sleep for %v seconds\n", *interval)
+		time.Sleep(*interval)
 	}
 }
