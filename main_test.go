@@ -203,6 +203,16 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			consultantMode: true,
 			expectedCap:    0,
 		},
+		{
+			name:           "On sunday I should stay off if consuntalt mode is not enabled.",
+			startTime:      7,
+			endTime:        17,
+			cap:            2,
+			day:            0,
+			currentHour:    16,
+			consultantMode: false,
+			expectedCap:    0,
+		},
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			tt.Log(test.name)

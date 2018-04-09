@@ -83,7 +83,7 @@ func determineNewCapacity(startTime, endTime, cap, day, currentHour int, consult
 		// scale down to 0
 		return 0
 	}
-	if day == 6 || day == 7 {
+	if day == int(time.Saturday) || day == int(time.Sunday) {
 		if consultantMode {
 			if currentHour > startTime {
 				// scale up
@@ -122,6 +122,7 @@ func main() {
 	asgName := kingpin.Flag("asg-name", "Name of the autoscaling group. Useful to make the downscaler handle different ASGs from the one it's running on.").String()
 	autoDetectASG := kingpin.Flag("autodetect", "Autodetect ASG group name, which is the ASG where this application is running.").Bool()
 	interval := kingpin.Flag("interval", "Interval by which the size is checked.").Default("60s").Duration()
+	debug := kingpin.Flag("verbose", "Enables verbose logging").Default("false").Bool()
 	kingpin.Parse()
 
 	session := session.New()
@@ -176,7 +177,9 @@ func main() {
 				log.Fatalf("error setting ASG capacity: %v", err)
 			}
 		}
-		log.Printf("Nothing left to do, going to sleep for %v seconds\n", *interval)
+		if *debug {
+			log.Printf("Nothing left to do, going to sleep for %v seconds\n", *interval)
+		}
 		time.Sleep(*interval)
 	}
 }
