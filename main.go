@@ -78,12 +78,12 @@ func autodetectASGName(client autoscalingInterface, instanceName *string) (strin
 	return *instances[0].AutoScalingGroupName, nil
 }
 
-func determineNewCapacity(startTime, endTime, cap, day, currentHour int, consultantMode bool) int {
+func determineNewCapacity(startTime, endTime, cap int, day time.Weekday, currentHour int, consultantMode bool) int {
 	if currentHour > endTime || currentHour < startTime {
 		// scale down to 0
 		return 0
 	}
-	if day == int(time.Saturday) || day == int(time.Sunday) {
+	if day == time.Saturday || day == time.Sunday {
 		if consultantMode {
 			if currentHour > startTime {
 				// scale up
@@ -164,7 +164,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("error getting current ASG capacity: %v", err)
 		}
-		newCap := determineNewCapacity(*startTime, *endTime, cap, int(day), t.Hour(), *consultantMode)
+		newCap := determineNewCapacity(*startTime, *endTime, cap, day, t.Hour(), *consultantMode)
 		if newCap != cap {
 			log.Printf("setting capacity to %d, previous: %d\n", newCap, cap)
 			err := asg.SetCapacity(int64(newCap))

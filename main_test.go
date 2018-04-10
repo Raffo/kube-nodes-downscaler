@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -128,7 +129,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 		startTime      int
 		endTime        int
 		cap            int
-		day            int
+		day            time.Weekday
 		currentHour    int
 		consultantMode bool
 		expectedCap    int
@@ -138,7 +139,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            2,
-			day:            2,
+			day:            time.Wednesday,
 			currentHour:    12,
 			consultantMode: false,
 			expectedCap:    2,
@@ -148,7 +149,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            2,
-			day:            2,
+			day:            time.Wednesday,
 			currentHour:    19,
 			consultantMode: false,
 			expectedCap:    0,
@@ -158,7 +159,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      7,
 			endTime:        16,
 			cap:            0,
-			day:            3,
+			day:            time.Thursday,
 			currentHour:    2,
 			consultantMode: false,
 			expectedCap:    0,
@@ -168,7 +169,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      11,
 			endTime:        16,
 			cap:            2,
-			day:            3,
+			day:            time.Thursday,
 			currentHour:    8,
 			consultantMode: false,
 			expectedCap:    0,
@@ -178,7 +179,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            0,
-			day:            6,
+			day:            time.Saturday,
 			currentHour:    19,
 			consultantMode: false,
 			expectedCap:    0,
@@ -188,7 +189,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            0,
-			day:            6,
+			day:            time.Saturday,
 			currentHour:    10,
 			consultantMode: true,
 			expectedCap:    2,
@@ -198,7 +199,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            2,
-			day:            6,
+			day:            time.Saturday,
 			currentHour:    19,
 			consultantMode: true,
 			expectedCap:    0,
@@ -208,7 +209,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      7,
 			endTime:        17,
 			cap:            2,
-			day:            0,
+			day:            time.Sunday,
 			currentHour:    16,
 			consultantMode: false,
 			expectedCap:    0,
