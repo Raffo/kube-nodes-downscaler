@@ -85,7 +85,7 @@ func determineNewCapacity(startTime, endTime, cap int, day time.Weekday, current
 	}
 	if day == time.Saturday || day == time.Sunday {
 		if consultantMode {
-			if currentHour > startTime {
+			if currentHour >= startTime {
 				// scale up
 				return 2
 			}
@@ -93,7 +93,7 @@ func determineNewCapacity(startTime, endTime, cap int, day time.Weekday, current
 			return 0
 		}
 	} else {
-		if currentHour > startTime {
+		if currentHour >= startTime {
 			// scale up
 			return 2
 		}
