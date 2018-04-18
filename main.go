@@ -22,6 +22,8 @@ type autoscalingInterface interface {
 
 var ignoredError = errors.New("nothing to worry about")
 
+var previousCapacity = 2
+
 // ASG is the basic data type to deal with AWS ASGs.
 type ASG struct {
 	Name   string
@@ -78,7 +80,7 @@ func autodetectASGName(client autoscalingInterface, instanceName *string) (strin
 	return *instances[0].AutoScalingGroupName, nil
 }
 
-func determineNewCapacity(startTime, endTime, cap int, day time.Weekday, currentHour int, consultantMode bool) int {
+func determineNewCapacity(startTime, endTime, cap, newCap int, day time.Weekday, currentHour int, consultantMode bool) int {
 	if currentHour > endTime || currentHour < startTime {
 		// scale down to 0
 		return 0
@@ -87,7 +89,7 @@ func determineNewCapacity(startTime, endTime, cap int, day time.Weekday, current
 		if consultantMode {
 			if currentHour >= startTime {
 				// scale up
-				return 2
+				return newCap
 			}
 		} else {
 			return 0
@@ -95,7 +97,7 @@ func determineNewCapacity(startTime, endTime, cap int, day time.Weekday, current
 	} else {
 		if currentHour >= startTime {
 			// scale up
-			return 2
+			return newCap
 		}
 	}
 	return cap
@@ -164,8 +166,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("error getting current ASG capacity: %v", err)
 		}
-		newCap := determineNewCapacity(*startTime, *endTime, cap, day, t.Hour(), *consultantMode)
+		newCap := determineNewCapacity(*startTime, *endTime, cap, previousCapacity, day, t.Hour(), *consultantMode)
 		if newCap != cap {
+			previousCapacity = cap
 			log.Printf("setting capacity to %d, previous: %d\n", newCap, cap)
 			err := asg.SetCapacity(int64(newCap))
 			if err != nil {

@@ -257,7 +257,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			tt.Log(test.name)
-			cap := determineNewCapacity(test.startTime, test.endTime, test.cap, test.day, test.currentHour, test.consultantMode)
+			cap := determineNewCapacity(test.startTime, test.endTime, test.cap, 2, test.day, test.currentHour, test.consultantMode)
 			if cap != test.expectedCap {
 				t.Errorf("expected %d, got %d", test.expectedCap, cap)
 			}
