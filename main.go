@@ -22,7 +22,7 @@ type autoscalingInterface interface {
 
 var ignoredError = errors.New("nothing to worry about")
 
-var previousCapacity = 2
+var maxCapacity = 2
 
 // ASG is the basic data type to deal with AWS ASGs.
 type ASG struct {
@@ -80,27 +80,40 @@ func autodetectASGName(client autoscalingInterface, instanceName *string) (strin
 	return *instances[0].AutoScalingGroupName, nil
 }
 
-func determineNewCapacity(startTime, endTime, cap, newCap int, day time.Weekday, currentHour int, consultantMode bool) int {
+func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday, currentHour int, consultantMode bool) int {
 	if currentHour > endTime || currentHour < startTime {
-		// scale down to 0
 		return 0
 	}
 	if day == time.Saturday || day == time.Sunday {
 		if consultantMode {
 			if currentHour >= startTime {
-				// scale up
-				return newCap
+				return maxCap
 			}
 		} else {
 			return 0
 		}
 	} else {
 		if currentHour >= startTime {
-			// scale up
-			return newCap
+			return maxCap
 		}
 	}
 	return cap
+}
+
+func updateCapacity(cap, newCap, maxCap int, asg *ASG) error {
+	if newCap != cap {
+		if cap > maxCapacity {
+			maxCapacity = cap
+		}
+		err := asg.SetCapacity(int64(newCap))
+		if err != nil {
+			if err == ignoredError {
+				return ignoredError
+			}
+			return fmt.Errorf("error setting ASG capacity: %v", err)
+		}
+	}
+	return nil
 }
 
 func validateParams(startTime, endTime int) error {
@@ -166,20 +179,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("error getting current ASG capacity: %v", err)
 		}
-		newCap := determineNewCapacity(*startTime, *endTime, cap, previousCapacity, day, t.Hour(), *consultantMode)
-		if newCap != cap {
-			previousCapacity = cap
-			log.Printf("setting capacity to %d, previous: %d\n", newCap, cap)
-			err := asg.SetCapacity(int64(newCap))
-			if err != nil {
-				if err == ignoredError {
-					log.Printf("ignoring this error as it is a transient state")
-					continue
-				}
-				//deciding to fail fast here. As this code is designed to work only with Kubernetes we get restarts for free.
-				log.Fatalf("error setting ASG capacity: %v", err)
-			}
+		newCap := determineNewCapacity(*startTime, *endTime, cap, maxCapacity, day, t.Hour(), *consultantMode)
+		log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
+		err = updateCapacity(cap, newCap, maxCapacity, &asg)
+		if err != nil && err != ignoredError {
+			log.Fatal(err)
 		}
+
 		if *debug {
 			log.Printf("Nothing left to do, going to sleep for %v seconds\n", *interval)
 		}

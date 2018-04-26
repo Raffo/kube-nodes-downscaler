@@ -129,6 +129,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 		startTime      int
 		endTime        int
 		cap            int
+		previousCap    int
 		day            time.Weekday
 		currentHour    int
 		consultantMode bool
@@ -139,6 +140,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Wednesday,
 			currentHour:    12,
 			consultantMode: false,
@@ -149,6 +151,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Wednesday,
 			currentHour:    19,
 			consultantMode: false,
@@ -159,6 +162,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      7,
 			endTime:        16,
 			cap:            0,
+			previousCap:    2,
 			day:            time.Thursday,
 			currentHour:    2,
 			consultantMode: false,
@@ -169,6 +173,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      11,
 			endTime:        16,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Thursday,
 			currentHour:    8,
 			consultantMode: false,
@@ -179,6 +184,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            0,
+			previousCap:    2,
 			day:            time.Saturday,
 			currentHour:    19,
 			consultantMode: false,
@@ -189,6 +195,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            0,
+			previousCap:    2,
 			day:            time.Saturday,
 			currentHour:    10,
 			consultantMode: true,
@@ -199,6 +206,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      9,
 			endTime:        18,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Saturday,
 			currentHour:    19,
 			consultantMode: true,
@@ -209,6 +217,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      7,
 			endTime:        17,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Sunday,
 			currentHour:    16,
 			consultantMode: false,
@@ -219,6 +228,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      7,
 			endTime:        17,
 			cap:            0,
+			previousCap:    2,
 			day:            time.Monday,
 			currentHour:    7,
 			consultantMode: false,
@@ -229,6 +239,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      6,
 			endTime:        17,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Monday,
 			currentHour:    7,
 			consultantMode: false,
@@ -239,6 +250,7 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      17,
 			endTime:        17,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Monday,
 			currentHour:    7,
 			consultantMode: false,
@@ -249,15 +261,27 @@ func TestDetermineNewCapacity(tt *testing.T) {
 			startTime:      17,
 			endTime:        17,
 			cap:            2,
+			previousCap:    2,
 			day:            time.Monday,
 			currentHour:    17,
+			consultantMode: false,
+			expectedCap:    2,
+		},
+		{
+			name:           "Scale the nodes to 2 if during the day and teh initial size is 0.",
+			startTime:      7,
+			endTime:        17,
+			cap:            0,
+			previousCap:    2,
+			day:            time.Monday,
+			currentHour:    12,
 			consultantMode: false,
 			expectedCap:    2,
 		},
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			tt.Log(test.name)
-			cap := determineNewCapacity(test.startTime, test.endTime, test.cap, 2, test.day, test.currentHour, test.consultantMode)
+			cap := determineNewCapacity(test.startTime, test.endTime, test.cap, test.previousCap, test.day, test.currentHour, test.consultantMode)
 			if cap != test.expectedCap {
 				t.Errorf("expected %d, got %d", test.expectedCap, cap)
 			}
@@ -320,5 +344,27 @@ func TestValidateParams(tt *testing.T) {
 				t.Errorf("expected %v, got %v", test.expectedErr, err != nil)
 			}
 		})
+	}
+}
+
+func TestSubsequentRun(t *testing.T) {
+	client := &MockAutoscalingClient{}
+	asg := NewMockASG()
+	asg.Client = client
+	cap := determineNewCapacity(7, 20, 0, maxCapacity, time.Monday, 10, false)
+	if cap != 2 {
+		t.Fatalf("expected %d, got %d", 2, cap)
+	}
+	err := updateCapacity(0, cap, 2, asg)
+	if err != nil {
+		t.Fatalf("cannot update capacity: %v", err)
+	}
+	cap = determineNewCapacity(7, 20, 2, maxCapacity, time.Monday, 20, false)
+	if cap != 2 {
+		t.Fatalf("expected %d, got %d", 2, cap)
+	}
+	err = updateCapacity(0, cap, 2, asg)
+	if err != nil {
+		t.Fatalf("cannot update capacity: %v", err)
 	}
 }
