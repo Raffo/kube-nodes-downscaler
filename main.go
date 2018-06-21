@@ -20,7 +20,7 @@ type autoscalingInterface interface {
 	DescribeAutoScalingGroups(input *autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error)
 }
 
-var ignoredError = errors.New("nothing to worry about")
+var errIgnored = errors.New("nothing to worry about")
 
 var maxCapacity = 2
 
@@ -44,10 +44,10 @@ func (a *ASG) SetCapacity(capacity int64) error {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeScalingActivityInProgressFault:
 				log.Printf("cannot autoscale due to activity in progress: %v\n", aerr.Error())
-				return ignoredError
+				return errIgnored
 			case autoscaling.ErrCodeResourceContentionFault:
 				log.Printf("cannot autoscale due to contention: %v\n", aerr.Error())
-				return ignoredError
+				return errIgnored
 			default:
 				return aerr
 			}
@@ -107,8 +107,8 @@ func updateCapacity(cap, newCap, maxCap int, asg *ASG) error {
 		}
 		err := asg.SetCapacity(int64(newCap))
 		if err != nil {
-			if err == ignoredError {
-				return ignoredError
+			if err == errIgnored {
+				return errIgnored
 			}
 			return fmt.Errorf("error setting ASG capacity: %v", err)
 		}
@@ -182,7 +182,7 @@ func main() {
 		newCap := determineNewCapacity(*startTime, *endTime, cap, maxCapacity, day, t.Hour(), *consultantMode)
 		log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
 		err = updateCapacity(cap, newCap, maxCapacity, &asg)
-		if err != nil && err != ignoredError {
+		if err != nil && err != errIgnored {
 			log.Fatal(err)
 		}
 
