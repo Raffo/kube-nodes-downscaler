@@ -22,8 +22,6 @@ type autoscalingInterface interface {
 
 var errIgnored = errors.New("nothing to worry about")
 
-var maxCapacity = 2
-
 // ASG is the basic data type to deal with AWS ASGs.
 type ASG struct {
 	Name   string
@@ -100,20 +98,17 @@ func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday,
 	return cap
 }
 
-func updateCapacity(cap, newCap, maxCap int, asg *ASG) error {
+func updateCapacity(cap, newCap int, asg *ASG) (int, error) {
 	if newCap != cap {
-		if cap > maxCapacity {
-			maxCapacity = cap
-		}
 		err := asg.SetCapacity(int64(newCap))
 		if err != nil {
 			if err == errIgnored {
-				return errIgnored
+				return 0, errIgnored
 			}
-			return fmt.Errorf("error setting ASG capacity: %v", err)
+			return 0, fmt.Errorf("error setting ASG capacity: %v", err)
 		}
 	}
-	return nil
+	return cap, nil
 }
 
 func validateParams(startTime, endTime int) error {
@@ -138,6 +133,7 @@ func main() {
 	autoDetectASG := kingpin.Flag("autodetect", "Autodetect ASG group name, which is the ASG where this application is running.").Bool()
 	interval := kingpin.Flag("interval", "Interval by which the size is checked.").Default("60s").Duration()
 	debug := kingpin.Flag("verbose", "Enables verbose logging").Default("false").Bool()
+	initialASGSize := kingpin.Flag("initial-asg-size", "Initial size of the ASG.").Default("3").Int()
 	kingpin.Parse()
 
 	session := session.New()
@@ -179,9 +175,12 @@ func main() {
 		if err != nil {
 			log.Fatalf("error getting current ASG capacity: %v", err)
 		}
-		newCap := determineNewCapacity(*startTime, *endTime, cap, maxCapacity, day, t.Hour(), *consultantMode)
+		newCap := determineNewCapacity(*startTime, *endTime, cap, *initialASGSize, day, t.Hour(), *consultantMode)
 		log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
-		err = updateCapacity(cap, newCap, maxCapacity, &asg)
+		cap, err = updateCapacity(cap, newCap, &asg)
+		if cap != 0 {
+			*initialASGSize = cap
+		}
 		if err != nil && err != errIgnored {
 			log.Fatal(err)
 		}

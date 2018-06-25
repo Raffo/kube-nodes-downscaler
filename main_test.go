@@ -351,19 +351,20 @@ func TestSubsequentRun(t *testing.T) {
 	client := &MockAutoscalingClient{}
 	asg := NewMockASG()
 	asg.Client = client
+	maxCapacity := 3
 	cap := determineNewCapacity(7, 20, 0, maxCapacity, time.Monday, 10, false)
-	if cap != 2 {
+	if cap != maxCapacity {
 		t.Fatalf("expected %d, got %d", 2, cap)
 	}
-	err := updateCapacity(0, cap, 2, asg)
+	_, err := updateCapacity(0, cap, asg)
 	if err != nil {
 		t.Fatalf("cannot update capacity: %v", err)
 	}
 	cap = determineNewCapacity(7, 20, 2, maxCapacity, time.Monday, 20, false)
-	if cap != 2 {
+	if cap != maxCapacity {
 		t.Fatalf("expected %d, got %d", 2, cap)
 	}
-	err = updateCapacity(0, cap, 2, asg)
+	_, err = updateCapacity(0, cap, asg)
 	if err != nil {
 		t.Fatalf("cannot update capacity: %v", err)
 	}
