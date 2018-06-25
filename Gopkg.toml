@@ -33,6 +33,14 @@
   name = "github.com/aws/aws-sdk-go"
   version = "1.13.21"
 
+[[override]]
+  name = "k8s.io/apimachinery"
+  branch = "release-1.9" # correct branch
+
+[[override]]
+  name = "k8s.io/client-go"
+  branch = "release-6.0" # correct branch
+
 [prune]
   go-tests = true
   unused-packages = true

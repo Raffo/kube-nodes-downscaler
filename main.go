@@ -6,6 +6,10 @@ import (
 	"log"
 	"time"
 
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/alecthomas/kingpin"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -100,20 +104,17 @@ func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday,
 	return cap
 }
 
-func updateCapacity(cap, newCap, maxCap int, asg *ASG) error {
+func updateCapacity(cap, newCap, maxCap int, asg *ASG) (int, error) {
 	if newCap != cap {
-		if cap > maxCapacity {
-			maxCapacity = cap
-		}
 		err := asg.SetCapacity(int64(newCap))
 		if err != nil {
 			if err == errIgnored {
-				return errIgnored
+				return cap, errIgnored
 			}
-			return fmt.Errorf("error setting ASG capacity: %v", err)
+			return cap, fmt.Errorf("error setting ASG capacity: %v", err)
 		}
 	}
-	return nil
+	return cap, nil
 }
 
 func validateParams(startTime, endTime int) error {
@@ -130,6 +131,11 @@ func validateParams(startTime, endTime int) error {
 	return nil
 }
 
+// ConfigMapData contains the last size of the autoscaling group.
+type ConfigMapData struct {
+	ASGSize int
+}
+
 func main() {
 	startTime := kingpin.Flag("start", "Start of the working day. 24h format.").Default("9").Int()
 	endTime := kingpin.Flag("end", "End of the working day. 24h format.").Default("18").Int()
@@ -138,6 +144,10 @@ func main() {
 	autoDetectASG := kingpin.Flag("autodetect", "Autodetect ASG group name, which is the ASG where this application is running.").Bool()
 	interval := kingpin.Flag("interval", "Interval by which the size is checked.").Default("60s").Duration()
 	debug := kingpin.Flag("verbose", "Enables verbose logging").Default("false").Bool()
+	configMapState := kingpin.Flag("configmap-state", "Stores the state in a Kubernetes config map.").Default("false").Bool()
+	configMapStateName := kingpin.Flag("configmap-state-name", "Name of the configmap to store the state.").Default("kube-nodes-downscaler").String()
+	kubeconfig := kingpin.Flag("kubeconfig", "Path to kubeconfig file.").String()
+
 	kingpin.Parse()
 
 	session := session.New()
@@ -145,6 +155,19 @@ func main() {
 	err := validateParams(*startTime, *endTime)
 	if err != nil {
 		log.Fatalf("invalid params: %v", err)
+	}
+
+	if *configMapState {
+		config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		if err != nil {
+			panic(err)
+		}
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			log.Fatalf("cannot initialize kubernetes client: %v", err)
+		}
+
+		clientset.CoreV1().ConfigMaps("kube-system").Create(*configMapStateName, types.StrategicMergePatchType, ConfigMapData{ASGSize: maxCapacity})
 	}
 
 	svc := ec2metadata.New(session)
@@ -181,9 +204,16 @@ func main() {
 		}
 		newCap := determineNewCapacity(*startTime, *endTime, cap, maxCapacity, day, t.Hour(), *consultantMode)
 		log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
-		err = updateCapacity(cap, newCap, maxCapacity, &asg)
+		cap, err = updateCapacity(cap, newCap, maxCapacity, &asg)
 		if err != nil && err != errIgnored {
 			log.Fatal(err)
+		}
+		if cap > maxCapacity {
+			if *configMapState {
+				// storing current state of the ASG in a configmap
+				clientset.CoreV1().ConfigMaps("kube-system").Patch(*configMapStateName, types.StrategicMergePatchType, ConfigMapData{ASGSize: cap})
+			}
+			maxCapacity = cap
 		}
 
 		if *debug {
