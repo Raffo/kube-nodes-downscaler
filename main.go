@@ -147,7 +147,7 @@ func (d *downscaler) do(t *time.Time) {
 	if err != nil && err != errIgnored {
 		log.Fatal(err)
 	}
-	if err != nil {
+	if err == nil {
 		d.initialASGSize = newCap
 	}
 	if d.debug {
