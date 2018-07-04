@@ -379,25 +379,44 @@ func TestDo(t *testing.T) {
 		endTime:        17,
 		interval:       1 * time.Second,
 		debug:          true,
-		initialASGSize: 3,
+		lastASGSize:    3,
 		consultantMode: false,
 		asg:            asg,
 	}
 
-	ta := time.Date(2000, 12, 15, 12, 8, 00, 0, time.UTC).Local()
+	_ = asg.SetCapacity(0) // we start from a size 0 autoscaler
+	ta := time.Date(2000, 12, 14, 12, 8, 00, 0, time.UTC).Local()
 	d.do(&ta)
 	c, _ := asg.GetCurrentCapacity()
+	// it's during the day so we expect to scale up
 	if c != 3 {
 		t.Fatalf("wrong capacity, expected %d have %d", 3, c)
 	}
-	_ = asg.SetCapacity(2)
-	c, _ = asg.GetCurrentCapacity()
-	if c != 2 {
-		t.Fatalf("wrong capacity, expected %d have %d", 2, c)
-	}
+	_ = asg.SetCapacity(4) // something/somebody scales up to 4 nodes
 	d.do(&ta)
 	c, _ = asg.GetCurrentCapacity()
-	if c != 3 {
-		t.Fatalf("wrong capacity, expected %d have %d", 3, c)
+	if c != 4 {
+		t.Fatalf("wrong capacity, expected %d have %d", 4, c)
+	}
+	ta = time.Date(2000, 12, 14, 22, 8, 00, 0, time.UTC).Local() // it's late :-)
+	d.do(&ta)
+	c, _ = asg.GetCurrentCapacity()
+	if c != 0 {
+		t.Fatalf("wrong capacity, expected %d have %d", 0, c)
+	}
+	ta = time.Date(2000, 12, 15, 10, 8, 00, 0, time.UTC).Local() // good morning :wave:
+	d.do(&ta)
+	c, _ = asg.GetCurrentCapacity()
+	if c != 4 {
+		t.Fatalf("wrong capacity, expected %d have %d", 4, c)
+	}
+}
+
+func TestMax(t *testing.T) {
+	if max(1, 2) != 2 {
+		t.Fatalf("expected max to be 2")
+	}
+	if max(2, 1) != 2 {
+		t.Fatalf("expected max to be 2")
 	}
 }

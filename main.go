@@ -31,7 +31,7 @@ type ASG struct {
 type downscaler struct {
 	startTime      int
 	endTime        int
-	initialASGSize int
+	lastASGSize    int
 	interval       time.Duration
 	consultantMode bool
 	debug          bool
@@ -88,7 +88,7 @@ func autodetectASGName(client autoscalingInterface, instanceName *string) (strin
 	return *instances[0].AutoScalingGroupName, nil
 }
 
-func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday, currentHour int, consultantMode bool) int {
+func determineNewCapacity(startTime, endTime, previousCap, maxCap int, day time.Weekday, currentHour int, consultantMode bool) int {
 	if currentHour > endTime || currentHour < startTime {
 		return 0
 	}
@@ -105,7 +105,7 @@ func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday,
 			return maxCap
 		}
 	}
-	return cap
+	return previousCap
 }
 
 func updateCapacity(cap, newCap int, asg *ASG) error {
@@ -135,20 +135,27 @@ func validateParams(startTime, endTime int) error {
 	return nil
 }
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func (d *downscaler) do(t *time.Time) {
 	day := t.Weekday()
 	cap, err := d.asg.GetCurrentCapacity()
 	if err != nil {
 		log.Fatalf("error getting current ASG capacity: %v", err)
 	}
-	newCap := determineNewCapacity(d.startTime, d.endTime, cap, d.initialASGSize, day, t.Hour(), d.consultantMode)
+	newCap := determineNewCapacity(d.startTime, d.endTime, cap, max(cap, d.lastASGSize), day, t.Hour(), d.consultantMode)
 	log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
 	err = updateCapacity(cap, newCap, d.asg)
 	if err != nil && err != errIgnored {
 		log.Fatal(err)
 	}
 	if err == nil {
-		d.initialASGSize = newCap
+		d.lastASGSize = max(newCap, d.lastASGSize)
 	}
 	if d.debug {
 		log.Printf("Nothing left to do, going to sleep for %v seconds\n", d.interval)
@@ -163,7 +170,7 @@ func main() {
 	autoDetectASG := kingpin.Flag("autodetect", "Autodetect ASG group name, which is the ASG where this application is running.").Bool()
 	interval := kingpin.Flag("interval", "Interval by which the size is checked.").Default("60s").Duration()
 	debug := kingpin.Flag("verbose", "Enables verbose logging").Default("false").Bool()
-	initialASGSize := kingpin.Flag("initial-asg-size", "Initial size of the ASG.").Default("3").Int()
+	lastASGSize := kingpin.Flag("initial-asg-size", "Initial size of the ASG.").Default("3").Int()
 	kingpin.Parse()
 
 	session := session.New()
@@ -203,7 +210,7 @@ func main() {
 		endTime:        *endTime,
 		interval:       *interval,
 		debug:          *debug,
-		initialASGSize: *initialASGSize,
+		lastASGSize:    *lastASGSize,
 		consultantMode: *consultantMode,
 		asg:            &asg,
 	}
