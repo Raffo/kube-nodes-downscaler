@@ -28,6 +28,16 @@ type ASG struct {
 	Client autoscalingInterface
 }
 
+type downscaler struct {
+	startTime      int
+	endTime        int
+	lastASGSize    int
+	interval       time.Duration
+	consultantMode bool
+	debug          bool
+	asg            *ASG
+}
+
 // SetCapacity sets the capacity of the ASG to "capacity"
 func (a *ASG) SetCapacity(capacity int64) error {
 	input := &autoscaling.SetDesiredCapacityInput{
@@ -78,7 +88,7 @@ func autodetectASGName(client autoscalingInterface, instanceName *string) (strin
 	return *instances[0].AutoScalingGroupName, nil
 }
 
-func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday, currentHour int, consultantMode bool) int {
+func determineNewCapacity(startTime, endTime, previousCap, maxCap int, day time.Weekday, currentHour int, consultantMode bool) int {
 	if currentHour > endTime || currentHour < startTime {
 		return 0
 	}
@@ -95,20 +105,20 @@ func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday,
 			return maxCap
 		}
 	}
-	return cap
+	return previousCap
 }
 
-func updateCapacity(cap, newCap int, asg *ASG) (int, error) {
+func updateCapacity(cap, newCap int, asg *ASG) error {
 	if newCap != cap {
 		err := asg.SetCapacity(int64(newCap))
 		if err != nil {
 			if err == errIgnored {
-				return 0, errIgnored
+				return errIgnored
 			}
-			return 0, fmt.Errorf("error setting ASG capacity: %v", err)
+			return fmt.Errorf("error setting ASG capacity: %v", err)
 		}
 	}
-	return cap, nil
+	return nil
 }
 
 func validateParams(startTime, endTime int) error {
@@ -125,6 +135,33 @@ func validateParams(startTime, endTime int) error {
 	return nil
 }
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func (d *downscaler) do(t *time.Time) {
+	day := t.Weekday()
+	cap, err := d.asg.GetCurrentCapacity()
+	if err != nil {
+		log.Fatalf("error getting current ASG capacity: %v", err)
+	}
+	newCap := determineNewCapacity(d.startTime, d.endTime, cap, max(cap, d.lastASGSize), day, t.Hour(), d.consultantMode)
+	log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
+	err = updateCapacity(cap, newCap, d.asg)
+	if err != nil && err != errIgnored {
+		log.Fatal(err)
+	}
+	if err == nil {
+		d.lastASGSize = max(newCap, d.lastASGSize)
+	}
+	if d.debug {
+		log.Printf("Nothing left to do, going to sleep for %v seconds\n", d.interval)
+	}
+}
+
 func main() {
 	startTime := kingpin.Flag("start", "Start of the working day. 24h format.").Default("9").Int()
 	endTime := kingpin.Flag("end", "End of the working day. 24h format.").Default("18").Int()
@@ -133,7 +170,7 @@ func main() {
 	autoDetectASG := kingpin.Flag("autodetect", "Autodetect ASG group name, which is the ASG where this application is running.").Bool()
 	interval := kingpin.Flag("interval", "Interval by which the size is checked.").Default("60s").Duration()
 	debug := kingpin.Flag("verbose", "Enables verbose logging").Default("false").Bool()
-	initialASGSize := kingpin.Flag("initial-asg-size", "Initial size of the ASG.").Default("3").Int()
+	lastASGSize := kingpin.Flag("initial-asg-size", "Initial size of the ASG.").Default("3").Int()
 	kingpin.Parse()
 
 	session := session.New()
@@ -168,26 +205,18 @@ func main() {
 	}
 
 	log.Println("starting the loop")
+	d := &downscaler{
+		startTime:      *startTime,
+		endTime:        *endTime,
+		interval:       *interval,
+		debug:          *debug,
+		lastASGSize:    *lastASGSize,
+		consultantMode: *consultantMode,
+		asg:            &asg,
+	}
 	for {
 		t := time.Now()
-		day := t.Weekday()
-		cap, err := asg.GetCurrentCapacity()
-		if err != nil {
-			log.Fatalf("error getting current ASG capacity: %v", err)
-		}
-		newCap := determineNewCapacity(*startTime, *endTime, cap, *initialASGSize, day, t.Hour(), *consultantMode)
-		log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
-		cap, err = updateCapacity(cap, newCap, &asg)
-		if cap != 0 {
-			*initialASGSize = cap
-		}
-		if err != nil && err != errIgnored {
-			log.Fatal(err)
-		}
-
-		if *debug {
-			log.Printf("Nothing left to do, going to sleep for %v seconds\n", *interval)
-		}
-		time.Sleep(*interval)
+		d.do(&t)
+		time.Sleep(d.interval)
 	}
 }
