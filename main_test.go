@@ -356,7 +356,7 @@ func TestSubsequentRun(t *testing.T) {
 	if cap != maxCapacity {
 		t.Fatalf("expected %d, got %d", 2, cap)
 	}
-	_, err := updateCapacity(0, cap, asg)
+	err := updateCapacity(0, cap, asg)
 	if err != nil {
 		t.Fatalf("cannot update capacity: %v", err)
 	}
@@ -364,8 +364,40 @@ func TestSubsequentRun(t *testing.T) {
 	if cap != maxCapacity {
 		t.Fatalf("expected %d, got %d", 2, cap)
 	}
-	_, err = updateCapacity(0, cap, asg)
+	err = updateCapacity(0, cap, asg)
 	if err != nil {
 		t.Fatalf("cannot update capacity: %v", err)
+	}
+}
+
+func TestDo(t *testing.T) {
+	client := &MockAutoscalingClient{}
+	asg := NewMockASG()
+	asg.Client = client
+	d := &downscaler{
+		startTime:      7,
+		endTime:        17,
+		interval:       1 * time.Second,
+		debug:          true,
+		initialASGSize: 3,
+		consultantMode: false,
+		asg:            asg,
+	}
+
+	ta := time.Date(2000, 12, 15, 12, 8, 00, 0, time.UTC).Local()
+	d.do(&ta)
+	c, _ := asg.GetCurrentCapacity()
+	if c != 3 {
+		t.Fatalf("wrong capacity, expected %d have %d", 3, c)
+	}
+	_ = asg.SetCapacity(2)
+	c, _ = asg.GetCurrentCapacity()
+	if c != 2 {
+		t.Fatalf("wrong capacity, expected %d have %d", 2, c)
+	}
+	d.do(&ta)
+	c, _ = asg.GetCurrentCapacity()
+	if c != 3 {
+		t.Fatalf("wrong capacity, expected %d have %d", 3, c)
 	}
 }

@@ -28,6 +28,16 @@ type ASG struct {
 	Client autoscalingInterface
 }
 
+type downscaler struct {
+	startTime      int
+	endTime        int
+	initialASGSize int
+	interval       time.Duration
+	consultantMode bool
+	debug          bool
+	asg            *ASG
+}
+
 // SetCapacity sets the capacity of the ASG to "capacity"
 func (a *ASG) SetCapacity(capacity int64) error {
 	input := &autoscaling.SetDesiredCapacityInput{
@@ -98,17 +108,17 @@ func determineNewCapacity(startTime, endTime, cap, maxCap int, day time.Weekday,
 	return cap
 }
 
-func updateCapacity(cap, newCap int, asg *ASG) (int, error) {
+func updateCapacity(cap, newCap int, asg *ASG) error {
 	if newCap != cap {
 		err := asg.SetCapacity(int64(newCap))
 		if err != nil {
 			if err == errIgnored {
-				return 0, errIgnored
+				return errIgnored
 			}
-			return 0, fmt.Errorf("error setting ASG capacity: %v", err)
+			return fmt.Errorf("error setting ASG capacity: %v", err)
 		}
 	}
-	return cap, nil
+	return nil
 }
 
 func validateParams(startTime, endTime int) error {
@@ -123,6 +133,26 @@ func validateParams(startTime, endTime int) error {
 		return fmt.Errorf("end of working day %d should be greater than start %d", endTime, startTime)
 	}
 	return nil
+}
+
+func (d *downscaler) do(t *time.Time) {
+	day := t.Weekday()
+	cap, err := d.asg.GetCurrentCapacity()
+	if err != nil {
+		log.Fatalf("error getting current ASG capacity: %v", err)
+	}
+	newCap := determineNewCapacity(d.startTime, d.endTime, cap, d.initialASGSize, day, t.Hour(), d.consultantMode)
+	log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
+	err = updateCapacity(cap, newCap, d.asg)
+	if err != nil && err != errIgnored {
+		log.Fatal(err)
+	}
+	if err != nil {
+		d.initialASGSize = newCap
+	}
+	if d.debug {
+		log.Printf("Nothing left to do, going to sleep for %v seconds\n", d.interval)
+	}
 }
 
 func main() {
@@ -168,26 +198,18 @@ func main() {
 	}
 
 	log.Println("starting the loop")
+	d := &downscaler{
+		startTime:      *startTime,
+		endTime:        *endTime,
+		interval:       *interval,
+		debug:          *debug,
+		initialASGSize: *initialASGSize,
+		consultantMode: *consultantMode,
+		asg:            &asg,
+	}
 	for {
 		t := time.Now()
-		day := t.Weekday()
-		cap, err := asg.GetCurrentCapacity()
-		if err != nil {
-			log.Fatalf("error getting current ASG capacity: %v", err)
-		}
-		newCap := determineNewCapacity(*startTime, *endTime, cap, *initialASGSize, day, t.Hour(), *consultantMode)
-		log.Printf("At %d determined capacity to be %d", t.Hour(), newCap)
-		cap, err = updateCapacity(cap, newCap, &asg)
-		if cap != 0 {
-			*initialASGSize = cap
-		}
-		if err != nil && err != errIgnored {
-			log.Fatal(err)
-		}
-
-		if *debug {
-			log.Printf("Nothing left to do, going to sleep for %v seconds\n", *interval)
-		}
-		time.Sleep(*interval)
+		d.do(&t)
+		time.Sleep(d.interval)
 	}
 }
