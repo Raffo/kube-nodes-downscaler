@@ -1,17 +1,17 @@
 # Kube Nodes Downscaler
 
-Running clusters in highly dynamic contexts means that we often run stuff we don't really need. 
-Wasting money is stupid and we really want to make sure that we only run stuff when we need to. 
+Running clusters in highly dynamic contexts means that we often run stuff we don't really need.
+Wasting money is stupid and we really want to make sure that we only run stuff when we need to.
 This little piece of code just scale down ASGs based on day and time to allow us to have clusters that are available only during working hours.
 
 ## Mode of executions
 
-The options should be self explanatory, if not please submit a bug report. There are however different options to deploy: 
+The options should be self explanatory, if not please submit a bug report. There are however different options to deploy:
 
 - run it on a master node: in this way we will need to pass the ASG name as parameter (we never want to scale down to 0 the master!)
 - run it on a worker node: in this case we can use the autodiscovery
 
-An example deployment file is the following: 
+An example deployment file is the following:
 
 ```
 apiVersion: extensions/v1beta1
@@ -40,7 +40,7 @@ spec:
       hostNetwork: true
       containers:
       - name: downscaler
-        image: x0rg/kube-nodes-downscaler
+        image: x0rg/kube-nodes-downscaler:v0.0.5
         imagePullPolicy: Always
         args:
           - --start=7
@@ -55,3 +55,4 @@ spec:
             cpu: 100m
 ```
 
+Images are provided on Docker Hub. Images with the `latest` tag are not publish to be able to easily figure out what is running in production. You can find what is the latest imaget tag by looking at [this page](https://hub.docker.com/r/x0rg/kube-nodes-downscaler/tags/).
