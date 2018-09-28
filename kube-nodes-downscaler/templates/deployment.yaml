@@ -1,0 +1,42 @@
+{{ if .Values.enabled }}
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "kube-nodes-downscaler.fullname" . }}
+  labels:
+    app: {{ template "kube-nodes-downscaler.name" . }}
+    chart: {{ template "kube-nodes-downscaler.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    k8s-app: kube-nodes-downscaler
+  namespace: {{ .Values.namespace }}
+spec:
+  template:
+    metadata:
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+      labels:
+        k8s-app: kube-nodes-downscaler
+    spec:
+      # run on each master node
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - key: CriticalAddonsOnly
+        operator: Exists
+      hostNetwork: true
+      containers:
+      - name: kube-nodes-downscaler
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args: {{ toJson .Values.args }}
+        resources:
+          requests:
+            memory: 20Mi
+            cpu: 10m
+          limits:
+            memory: 20Mi
+            cpu: 100m
+{{- end -}}

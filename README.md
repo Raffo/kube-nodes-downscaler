@@ -56,3 +56,12 @@ spec:
 ```
 
 Images are provided on Docker Hub. Images with the `latest` tag are not publish to be able to easily figure out what is running in production. You can find what is the latest imaget tag by looking at [this page](https://hub.docker.com/r/x0rg/kube-nodes-downscaler/tags/).
+
+## Helm chart
+
+A [Helm](https://helm.sh/) chart is available. You can install it using:
+
+```bash
+helm repo add raffo-kube-nodes-downscaler https://raw.githubusercontent.com/Raffo/kube-nodes-downscaler/master/charts/
+helm install --name kube-nodes-downscaler raffo-kube-nodes-downscaler/kube-nodes-downscaler
+```  

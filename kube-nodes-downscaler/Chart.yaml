@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for Kubernetes Nodes Downscaler
+name: kube-nodes-downscaler
+version: 0.1.0
