@@ -7,6 +7,6 @@ entries:
     digest: cdb7b2811d6a47e7910a7d127d3cba4d8676c8fa976becc7c4fb3d50d9b5f99f
     name: kube-nodes-downscaler
     urls:
-    - https://raw.githubusercontent.com/bambooengineering/kube-nodes-downscaler/adding-helm-chart/charts/kube-nodes-downscaler-0.1.0.tgz
+    - https://raw.githubusercontent.com/Raffo/kube-nodes-downscaler/master/charts/kube-nodes-downscaler-0.1.0.tgz
     version: 0.1.0
 generated: 2018-09-28T15:30:50.127031279+01:00
