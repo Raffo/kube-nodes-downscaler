@@ -1,0 +1,7 @@
+enabled: true
+image:
+  repository: x0rg/kube-nodes-downscaler
+  tag: v0.0.5
+  pullPolicy: IfNotPresent
+namespace: kube-system
+args: []
