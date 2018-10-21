@@ -1,5 +1,7 @@
 # Kube Nodes Downscaler
 
+[![CircleCI](https://circleci.com/gh/Raffo/kube-nodes-downscaler.svg?style=svg)](https://circleci.com/gh/Raffo/kube-nodes-downscaler)
+
 Running clusters in highly dynamic contexts means that we often run stuff we don't really need.
 Wasting money is stupid and we really want to make sure that we only run stuff when we need to.
 This little piece of code just scale down ASGs based on day and time to allow us to have clusters that are available only during working hours.
