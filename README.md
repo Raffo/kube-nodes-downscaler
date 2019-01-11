@@ -57,7 +57,7 @@ spec:
             cpu: 100m
 ```
 
-Images are provided on Docker Hub. Images with the `latest` tag are not publish to be able to easily figure out what is running in production. You can find what is the latest imaget tag by looking at [this page](https://hub.docker.com/r/x0rg/kube-nodes-downscaler/tags/).
+Images are provided on Docker Hub. Images with the `latest` tag are not published on purpose to be able to easily figure out what is running in production and not rely on a tag that gets rewritten. You can find what is the latest imaget tag by looking at [this page](https://hub.docker.com/r/x0rg/kube-nodes-downscaler/tags/).
 
 ## Helm chart
 
