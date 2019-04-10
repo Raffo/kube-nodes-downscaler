@@ -26,6 +26,14 @@ check:
 	golint $(GOPKGS)
 	go vet -v $(GOPKGS)
 
+tag:
+	if test "$(TAG)" = "" ; then \
+		echo "usage: make tag TAG=1.2.3"; \
+		exit 1; \
+	fi
+	git tag -a $(TAG) -m "$(TAG)"
+	git push origin $(TAG)
+
 build.local: build/$(BINARY)
 build.linux: build/linux/$(BINARY)
 build.osx: build/osx/$(BINARY)
