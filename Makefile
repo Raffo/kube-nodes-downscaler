@@ -2,7 +2,7 @@
 
 BINARY        ?= kube-nodes-downscaler
 IMAGE         ?= x0rg/kube-nodes-downscaler
-VERSION       ?= v0.0.4
+VERSION       ?= v0.0.5
 TAG           ?= $(VERSION)
 GITHEAD       = $(shell git rev-parse --short HEAD)
 GITURL        = $(shell git config --get remote.origin.url)
